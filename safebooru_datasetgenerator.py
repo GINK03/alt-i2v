@@ -118,7 +118,8 @@ if __name__ == '__main__':
       open('./imgs/{}.jpg'.format( img_url.split('/')[-1] ), 'wb').write(con)
       print('complete write image of {url} , current filenumber is {number}'.format(url=img_url, number=len(glob.glob('imgs/*'))) )
     
-    def analyzing(url) -> str:
+    def analyzing(inputs) -> str:
+      url, index = inputs
       burl = bytes(url, 'utf-8')
       html, title, soup = html_adhoc_fetcher(url)
       if soup is None:
@@ -127,22 +128,25 @@ if __name__ == '__main__':
       if sec.find('img') is None:
         return str(False)
       img_url = 'http://safebooru.donmai.us{}'.format(sec.find('img').get('src'))
-      open('{}.txt',format( img_url.split('/')[-1] ), 'w').write(sec.find('img').get('data-tags'))
+      open('./imgs/{name}.txt'.format(name=img_url.split('/')[-1] ), 'w').write(sec.find('img').get('data-tags'))
       parse_img(img_url)
+      open('./finished/{index}'.format(index=index), 'w').write("f")
       return sec.find('img').get('data-tags')
-  
-    urls = filter(lambda x: x, ['http://safebooru.donmai.us/posts/{i}'.format(i=i) for i in range(1, 100)]),#2653427)] )
+    import random 
+    finished = set(name.split('/')[-1] for name in glob.glob('./finished/*'))
+    samples  = filter( lambda x:x not in finished, range(1, 2653427))
+    urls = [ ('http://safebooru.donmai.us/posts/{i}'.format(i=i), i) for i in samples]
+    random.shuffle(urls)
     from multiprocessing import Pool  
     from multiprocessing import Process, Queue
     from concurrent import futures
-    with futures.ProcessPoolExecutor(max_workers=10) as executor:
+    with futures.ProcessPoolExecutor(max_workers=768) as executor:
       mappings = {executor.submit(analyzing, url): url for url in urls}
       for future in futures.as_completed(mappings):
         input_arg = mappings[future]
         result = future.result()
         msg = '{n}: {result}'.format(n=input_arg, result=result)
-
-
+        print(msg)
   if mode == 'chaine':
     import os
     db = plyvel.DB('./tmp/pixiv_htmls', create_if_missing=False)
