@@ -1,53 +1,28 @@
-# coding: utf-8
-
 import bs4
 import sys
 import urllib.request, urllib.error, urllib.parse
-import urllib.request, urllib.parse, urllib.error
 import http.client
 from socket import error as SocketError
 import ssl
 import os.path
 import argparse
 import datetime
-import pickle as pickle
+import pickle
 import signal
-import http.cookiejar, random
-#import plyvel
-import pickle as pickle
+import http.cookiejar
 import re
 import json
 import random
-
-def makeCookie(name, value):
-    import http.cookiejar
-    return http.cookiejar.Cookie(
-        version=0, 
-        name=name, 
-        value=value,
-        port=None, 
-        port_specified=False,
-        domain="kahdev.bur.st", 
-        domain_specified=True, 
-        domain_initial_dot=False,
-        path="/", 
-        path_specified=True,
-        secure=False,
-        expires=None,
-        discard=False,
-        comment=None,
-        comment_url=None,
-        rest=None
-    )
+from multiprocessing import Pool  
+from multiprocessing import Process, Queue
+from concurrent import futures
 def html_adhoc_fetcher(url):
   html = None
   retrys = [i for i in range(10)]
   for _ in retrys :
-    jar = http.cookiejar.CookieJar()
-    jar.set_cookie(makeCookie("PHPSESSID", "375f0bb5f7425c4c75f3c7cd0123689a"))
     headers = {"Accept-Language": "en-US,en;q=0.5","User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0","Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer": "http://thewebsite.com","Connection": "keep-alive" } 
     request = urllib.request.Request(url=url, headers=headers)
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+    opener = urllib.request.build_opener()
     _TIME_OUT = 10.
     try:
       html = opener.open(request, timeout = _TIME_OUT).read()
@@ -105,41 +80,41 @@ if __name__ == '__main__':
   active     = (lambda x:15 if x==None else int(x) )( args_obj.get('active') )
   filename   = args_obj.get('file')
 
-  if mode == 'local' or mode == 'level':
+  if mode == 'scrape':
     from threading import Thread as Th
     import glob
-    def parse_img(img_url:str) -> None:
-      opener  = urllib.request.build_opener()
-      request = urllib.request.Request(url=img_url)
-      try:
-        con = opener.open(request).read()
-      except:
-        return None
-      open('./imgs/{}.jpg'.format( img_url.split('/')[-1] ), 'wb').write(con)
-      print('complete write image of {url} , current filenumber is {number}'.format(url=img_url, number=len(glob.glob('imgs/*'))) )
     
     def analyzing(inputs) -> str:
       url, index = inputs
       burl = bytes(url, 'utf-8')
       html, title, soup = html_adhoc_fetcher(url)
       if soup is None:
+        print('except miss')
         return str(False)
       sec = soup.find('section', {'id':'image-container'})
       if sec.find('img') is None:
+        print('except no contents')
+        open('./finished/{index}'.format(index=index), 'w').write("n")
         return str(False)
       img_url = 'http://safebooru.donmai.us{}'.format(sec.find('img').get('src'))
-      open('./imgs/{name}.txt'.format(name=img_url.split('/')[-1] ), 'w').write(sec.find('img').get('data-tags'))
-      parse_img(img_url)
-      open('./finished/{index}'.format(index=index), 'w').write("f")
+      data_tags = sec.find('img').get('data-tags')
+      def _i(img_url, data_tags, index):
+        opener  = urllib.request.build_opener()
+        request = urllib.request.Request(url=img_url)
+        con = opener.open(request).read()
+        open('./imgs/{}.jpg'.format( img_url.split('/')[-1] ), 'wb').write(con)
+        open('./imgs/{name}.txt'.format(name=img_url.split('/')[-1] ), 'w').write(data_tags)
+        open('./finished/{index}'.format(index=index), 'w').write("f")
+        print('complete storing image of {url}'.format(url=img_url) )
+      th = Th(target=_i, args=(img_url, data_tags, index,))
+      th.start()
       return sec.find('img').get('data-tags')
-    import random 
+    
     finished = set(name.split('/')[-1] for name in glob.glob('./finished/*'))
     samples  = filter( lambda x:x not in finished, range(1, 2653427))
     urls = [ ('http://safebooru.donmai.us/posts/{i}'.format(i=i), i) for i in samples]
     random.shuffle(urls)
-    from multiprocessing import Pool  
-    from multiprocessing import Process, Queue
-    from concurrent import futures
+    
     with futures.ProcessPoolExecutor(max_workers=768) as executor:
       mappings = {executor.submit(analyzing, url): url for url in urls}
       for future in futures.as_completed(mappings):
@@ -147,6 +122,7 @@ if __name__ == '__main__':
         result = future.result()
         msg = '{n}: {result}'.format(n=input_arg, result=result)
         print(msg)
+  
   if mode == 'chaine':
     import os
     db = plyvel.DB('./tmp/pixiv_htmls', create_if_missing=False)
