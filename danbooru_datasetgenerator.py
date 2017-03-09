@@ -15,6 +15,7 @@ import json
 import random
 from multiprocessing import Pool  
 from multiprocessing import Process, Queue
+import multiprocessing as mp
 from concurrent import futures
 def html_adhoc_fetcher(url):
   html = None
