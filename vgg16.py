@@ -24,9 +24,9 @@ result_dir = 'results'
 def build_dataset():
   Xs = []
   Ys = []
-  keys = [name.replace('.txt', '') for name in glob.glob('imgs/*.txt')]
+  keys = [name.replace('.txt', '') for name in glob.glob('danbooru.imgs/*.txt')]
   tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
-  for key in keys[:100]:
+  for key in keys[:10]:
     vec = [0.]*len(tag_index)
     raw = open('{key}.txt'.format(key=key)).read().split('\n')
     text_tags = raw[0].split()
@@ -42,12 +42,11 @@ def build_dataset():
     img = Image.open('{key}.jpg'.format(key=key))
     img = img.convert('RGB')
     img = np.array(img.resize((150, 150)))
-    img = np.expand_dims(img, axis=0)
-
+    #img = np.expand_dims(img, axis=0)
     #print(key)
     #print(list(filter(lambda x:x!=0.,vec)))
     #print(img.shape)
-    Ys.append(vec)
+    Ys.append(np.array(vec))
     Xs.append(img)
   return Xs, Ys
 
@@ -70,30 +69,26 @@ def tag2index():
     tag_index[tag] = len(tag_index)
     print(tag, len(tag_index), freq)  
   open('tag_index.pkl', 'wb').write(pickle.dumps(tag_index))
-  #for tag, index in tag_index.items():
-  #  print(tag, index)
 
 def build_model():
   input_tensor = Input(shape=(150, 150, 3))
   vgg16_model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
   w1 = Flatten()(vgg16_model.layers[14].output)
-  w2 = Flatten()(vgg16_model.layers[10].output)
-  w3 = Flatten()(vgg16_model.layers[6].output)
+  #w2 = Flatten()(Dense(512, activation='relu')(vgg16_model.layers[12].output))
+  #w3 = Flatten()(vgg16_model.layers[6].output)
   dense  = Flatten()(Dense(512, activation='relu')(vgg16_model.layers[-1].output))
-  merged = merge([w1, dense, w2, w3], mode='concat')
+  merged = merge([w1, dense], mode='concat')
   dense2 = Dense(4096)(merged)
   acted  = Activation('sigmoid')(dense2)
   print('vgg16_model:', vgg16_model)
   model = Model(input=vgg16_model.input, output=acted)
   sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-  model.compile(loss='binary_crossentropy', optimizer=sgd)
-  return model
-  #for i in range(len(model.layers)):
-  #  print(i, model.layers[i])
-  # 最後のconv層の直前までの層をfreeze
+  for i in range(len(model.layers)):
+    print(i, model.layers[i])
   #for layer in model.layers[:15]:
   #  layer.trainable = False
-  #model.summary()
+  model.compile(loss='mse', optimizer=sgd)
+  return model
 
 if __name__ == '__main__':
   if '--maeshori' in sys.argv:
@@ -101,5 +96,5 @@ if __name__ == '__main__':
   if '--test' in sys.argv:
     Xs, Ys = build_dataset()
     model = build_model()
-    model.fit([Xs[0]], np.array([Ys[0]]))
+    model.fit([np.array(Xs)], np.array(Ys), batch_size=16, nb_epoch=20 )
   pass
