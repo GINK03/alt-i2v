@@ -6,13 +6,17 @@ from keras.layers import Input, Activation, Dropout, Flatten, Dense, Reshape, me
 from keras.preprocessing.image import ImageDataGenerator
 from keras import optimizers
 from keras.preprocessing.image import ImageDataGenerator
+from keras.layers.normalization import BatchNormalization as BN
 import numpy as np
 import os
 from PIL import Image
 import glob 
 import pickle
 import sys
-
+import plyvel
+import msgpack
+import msgpack_numpy as m
+import numpy as np
 img_width, img_height = 150, 150
 train_data_dir = './danbooru.imgs'
 validation_data_dir = './imgs'
@@ -21,12 +25,26 @@ nb_validation_samples = 800
 nb_epoch = 50
 result_dir = 'results'
 
-def build_dataset():
-  Xs = []
-  Ys = []
-  keys = [name.replace('.txt', '') for name in glob.glob('danbooru.imgs/*.txt')]
-  tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
-  for key in keys[:10]:
+def loader():
+  db = plyvel.DB('lexical.ldb', create_if_missing=False)
+  Xs, Ys = [], []
+  for img, vec in db:
+    img = msgpack.unpackb(img, object_hook=m.decode) 
+    Xs.append(img)
+    vec = msgpack.unpackb(vec, object_hook=m.decode) 
+    Ys.append(vec)
+  return Xs,Ys
+
+def build_dataset() -> None:
+  db = plyvel.DB('lexical.ldb', create_if_missing=True)
+  print("A")
+  keys = [name.replace('.txt', '') for name in glob.glob('/mnt/sdb1/alt-i2v/alt-i2v/danbooru.imgs/*.txt')]
+  print("B")
+  tag_index = pickle.loads(open('/mnt/sdb1/alt-i2v/alt-i2v/tag_index.pkl', 'rb').read())
+  print("C")
+  for ki, key in enumerate(keys):
+    if ki%100 == 0:
+      print('iter {}'.format(ki))
     vec = [0.]*len(tag_index)
     raw = open('{key}.txt'.format(key=key)).read().split('\n')
     text_tags = raw[0].split()
@@ -40,15 +58,16 @@ def build_dataset():
       pass
     
     img = Image.open('{key}.jpg'.format(key=key))
-    img = img.convert('RGB')
+    try:
+      img = img.convert('RGB')
+    except OSError as e:
+      continue
     img = np.array(img.resize((150, 150)))
-    #img = np.expand_dims(img, axis=0)
-    #print(key)
-    #print(list(filter(lambda x:x!=0.,vec)))
-    #print(img.shape)
-    Ys.append(np.array(vec))
-    Xs.append(img)
-  return Xs, Ys
+    vec = np.array(vec)
+    img = msgpack.packb(img, default=m.encode)
+    vec = msgpack.packb(vec, default=m.encode)
+    db.put(img, vec)
+  return None
 
 def tag2index():
   keys = [name for name in glob.glob('imgs/*.txt')]
@@ -73,28 +92,36 @@ def tag2index():
 def build_model():
   input_tensor = Input(shape=(150, 150, 3))
   vgg16_model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
-  w1 = Flatten()(vgg16_model.layers[14].output)
-  #w2 = Flatten()(Dense(512, activation='relu')(vgg16_model.layers[12].output))
-  #w3 = Flatten()(vgg16_model.layers[6].output)
-  dense  = Flatten()(Dense(512, activation='relu')(vgg16_model.layers[-1].output))
-  merged = merge([w1, dense], mode='concat')
-  dense2 = Dense(4096)(merged)
-  acted  = Activation('sigmoid')(dense2)
-  print('vgg16_model:', vgg16_model)
-  model = Model(input=vgg16_model.input, output=acted)
-  sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+  #w1 = Flatten()(vgg16_model.layers[14].output)
+  dense  = Flatten()( \
+               Dense(128, activation='relu')( \
+	           vgg16_model.layers[-1].output ) ) 
+  result = Activation('sigmoid')(\
+             Dense(4096)(\
+               dense) ) 
+  
+  model = Model(input=vgg16_model.input, output=result)
   for i in range(len(model.layers)):
     print(i, model.layers[i])
-  #for layer in model.layers[:15]:
-  #  layer.trainable = False
-  model.compile(loss='mse', optimizer=sgd)
+  for layer in model.layers[:15]:
+    layer.trainable = False
+  model.compile(loss='binary_crossentropy', optimizer='sgd')
   return model
 
 if __name__ == '__main__':
+  print('b')
   if '--maeshori' in sys.argv:
     tag2index()
-  if '--test' in sys.argv:
-    Xs, Ys = build_dataset()
+  if '--build' in sys.argv:
+    build_dataset()
+  if '--train' in sys.argv:
+    Xs, Ys = loader()
     model = build_model()
-    model.fit([np.array(Xs)], np.array(Ys), batch_size=16, nb_epoch=20 )
+    for i in range(20):
+      model.fit(np.array(Xs), np.array(Ys), batch_size=16, nb_epoch=1 )
+      if i%1 == 0:
+        from multiprocessing import Process
+        saver = lambda x:model.save('models/model%05d'%i)
+        p = Process(target=saver, args=(None,))
+        p.start()
   pass
