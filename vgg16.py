@@ -47,9 +47,10 @@ def build_dataset() -> None:
   print("complete to get tag_index.pkl ...")
   kantai = list(filter(lambda x:'kantai' in x, keys))
   length = len(kantai)
-  for ki, key in enumerate(kantai):
+  def _f(ki, key):
     if dbmemo.get(bytes(key, 'utf-8')) is not None:
-      continue
+      #continue 
+      return
     if ki%100 == 0:
       print('iter {}/{}'.format(ki, length))
     vec = [0.]*len(tag_index)
@@ -57,11 +58,11 @@ def build_dataset() -> None:
     try:
       json_tag = list(json.loads(open('{key}.metav1'.format(key=key)).read()).values())
     except FileNotFoundError as e:
-      continue
+      return;#continue
     except OSError as e:
-      continue
+      return;#continue
     except json.decoder.JSONDecodeError as  e:
-      continue
+      return;#continue
     json_tag = list(map(lambda x:x.replace(' ', '_'), json_tag))
     text_tags = raw.split()
 
@@ -71,11 +72,11 @@ def build_dataset() -> None:
     try: 
       img = Image.open('{key}.jpg'.format(key=key))
     except OSError as e:
-      continue
+      return;#continue
     try:
       img = img.convert('RGB')
     except OSError as e:
-      continue
+      return;#continue
     img150 = np.array(img.resize((150, 150)))
     vec = np.array(vec)
     img150 = msgpack.packb(img150, default=m.encode)
@@ -85,6 +86,9 @@ def build_dataset() -> None:
     else:
       dbeval.put(img150, vec)
     dbmemo.put(bytes(key, 'utf-8'), bytes('f', 'utf-8'))
+  ts = [(ki,key) for ki, key in enumerate(kantai)]
+  for t in ts:
+    _f(t[0], t[1])
   return None
 
 def tag2index():
