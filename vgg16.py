@@ -26,7 +26,7 @@ nb_epoch = 50
 result_dir = 'results'
 
 def loader():
-  db = plyvel.DB('lexical.ldb', create_if_missing=False)
+  db = plyvel.DB('lexical150.ldb', create_if_missing=False)
   Xs, Ys = [], []
   for img, vec in db:
     img = msgpack.unpackb(img, object_hook=m.decode) 
@@ -36,12 +36,13 @@ def loader():
   return Xs,Ys
 
 def build_dataset() -> None:
-  db = plyvel.DB('lexical.ldb', create_if_missing=True)
-  print("A")
-  keys = [name.replace('.txt', '') for name in glob.glob('/mnt/sdb1/alt-i2v/alt-i2v/danbooru.imgs/*.txt')]
-  print("B")
+  db150 = plyvel.DB('lexical150.ldb', create_if_missing=True)
+  db300 = plyvel.DB('lexical300.ldb', create_if_missing=True)
+  print("start to loading huge file system...")
+  keys = [name.replace('.txt', '') for name in glob.glob('danbooru.imgs/*.txt')]
+  print("complete to get file names ...")
   tag_index = pickle.loads(open('/mnt/sdb1/alt-i2v/alt-i2v/tag_index.pkl', 'rb').read())
-  print("C")
+  print("complete to get tag_index.pkl ...")
   for ki, key in enumerate(keys):
     if ki%100 == 0:
       print('iter {}'.format(ki))
@@ -62,11 +63,14 @@ def build_dataset() -> None:
       img = img.convert('RGB')
     except OSError as e:
       continue
-    img = np.array(img.resize((150, 150)))
+    #img300 = np.array(img.resize((300, 300)))
+    img150 = np.array(img.resize((150, 150)))
     vec = np.array(vec)
-    img = msgpack.packb(img, default=m.encode)
+    #img300 = msgpack.packb(img300, default=m.encode)
+    img150 = msgpack.packb(img150, default=m.encode)
     vec = msgpack.packb(vec, default=m.encode)
-    db.put(img, vec)
+    #db300.put(img300, vec)
+    db150.put(img150, vec)
   return None
 
 def tag2index():
@@ -119,12 +123,15 @@ if __name__ == '__main__':
   if '--train' in sys.argv:
     Xs, Ys = loader()
     model = build_model()
+    ps = []
     for i in range(30):
       model.fit(np.array(Xs[:3000]), np.array(Ys[:3000]), batch_size=16, nb_epoch=1 )
       if i%1 == 0:
-        #from multiprocessing import Process
-        #model.save('models/model%05d'%i)
-        pass
-        #p = Process(target=saver, args=(None,))
-        #p.start()
+        from multiprocessing import Process
+        def saver(model):
+          model.save('models/model%05d.mpdel'%i)
+        ps.append(Process(target=saver, args=(model,)))
+        ps[-1].start()
+    for p in ps:
+      p.join()
   pass
