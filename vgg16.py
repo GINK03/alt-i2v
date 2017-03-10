@@ -38,17 +38,20 @@ def loader():
 
 def build_dataset() -> None:
   db150 = plyvel.DB('lexical150.ldb', create_if_missing=True)
+  dbeval = plyvel.DB('lexical_eval.ldb', create_if_missing=True)
   dbmemo = plyvel.DB('memo.ldb', create_if_missing=True)
   print("start to loading huge file system...")
   keys = [name.replace('.txt', '') for name in glob.glob('danbooru.imgs/*.txt')]
   print("complete to get file names ...")
   tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
   print("complete to get tag_index.pkl ...")
-  for ki, key in enumerate(filter(lambda x:'kantai' in x, keys)):
+  kantai = list(filter(lambda x:'kantai' in x, keys))
+  length = len(kantai)
+  for ki, key in enumerate(kantai):
     if dbmemo.get(bytes(key, 'utf-8')) is not None:
       continue
     if ki%100 == 0:
-      print('iter {}'.format(ki))
+      print('iter {}/{}'.format(ki, length))
     vec = [0.]*len(tag_index)
     raw = open('{key}.txt'.format(key=key)).read()
     try:
@@ -65,8 +68,10 @@ def build_dataset() -> None:
     for tag in sum([json_tag, text_tags], []):
       if tag_index.get(tag) is not None:
         vec[tag_index[tag]] = 1.
-    
-    img = Image.open('{key}.jpg'.format(key=key))
+    try: 
+      img = Image.open('{key}.jpg'.format(key=key))
+    except OSError as e:
+      continue
     try:
       img = img.convert('RGB')
     except OSError as e:
@@ -75,13 +80,17 @@ def build_dataset() -> None:
     vec = np.array(vec)
     img150 = msgpack.packb(img150, default=m.encode)
     vec = msgpack.packb(vec, default=m.encode)
-    db150.put(img150, vec)
+    if ki/length < 0.8:
+      db150.put(img150, vec)
+    else:
+      dbeval.put(img150, vec)
     dbmemo.put(bytes(key, 'utf-8'), bytes('f', 'utf-8'))
   return None
 
 def tag2index():
   keys = [name for name in glob.glob('danbooru.imgs/*.txt')]
   tags_freq = {}
+  keys   = list(filter(lambda x:'kantai' in x, keys))
   length = len(keys)
   for ki, key in enumerate(keys):
     if ki%10000 == 0:
@@ -134,6 +143,14 @@ def build_model():
   model.compile(loss='binary_crossentropy', optimizer='adam')
   return model
 
+def train():
+  Xs, Ys = loader()
+  model = build_model()
+  for i in range(30):
+    model.fit(np.array(Xs[:3000]), np.array(Ys[:3000]), batch_size=16, nb_epoch=1 )
+    if i%1 == 0:
+      model.save('models/model%05d.model'%i)
+
 if __name__ == '__main__':
   print('b')
   if '--maeshori' in sys.argv:
@@ -141,10 +158,4 @@ if __name__ == '__main__':
   if '--build' in sys.argv:
     build_dataset()
   if '--train' in sys.argv:
-    Xs, Ys = loader()
-    model = build_model()
-    ps = []
-    for i in range(30):
-      model.fit(np.array(Xs[:3000]), np.array(Ys[:3000]), batch_size=16, nb_epoch=1 )
-      if i%1 == 0:
-        model.save('models/model%05d.mpdel'%i)
+    train()
