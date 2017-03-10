@@ -101,5 +101,5 @@ if __name__ == '__main__':
   if '--test' in sys.argv:
     Xs, Ys = build_dataset()
     model = build_model()
-    model.fit([Xs[0]], np.array([Ys[0]]))
+    model.fit([Xs[0]], np.array([Ys[0]]), batch_size=32, nb_epoch=15 )
   pass
