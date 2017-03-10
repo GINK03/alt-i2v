@@ -6,13 +6,18 @@ from keras.layers import Input, Activation, Dropout, Flatten, Dense, Reshape, me
 from keras.preprocessing.image import ImageDataGenerator
 from keras import optimizers
 from keras.preprocessing.image import ImageDataGenerator
+from keras.layers.normalization import BatchNormalization as BN
 import numpy as np
 import os
 from PIL import Image
 import glob 
 import pickle
 import sys
-
+import plyvel
+import msgpack
+import msgpack_numpy as m
+import numpy as np
+import json
 img_width, img_height = 150, 150
 train_data_dir = './danbooru.imgs'
 validation_data_dir = './imgs'
@@ -21,85 +26,125 @@ nb_validation_samples = 800
 nb_epoch = 50
 result_dir = 'results'
 
-def build_dataset():
-  Xs = []
-  Ys = []
-  keys = [name.replace('.txt', '') for name in glob.glob('imgs/*.txt')]
+def loader():
+  db = plyvel.DB('lexical150.ldb', create_if_missing=False)
+  Xs, Ys = [], []
+  for img, vec in db:
+    img = msgpack.unpackb(img, object_hook=m.decode) 
+    Xs.append(img)
+    vec = msgpack.unpackb(vec, object_hook=m.decode) 
+    Ys.append(vec)
+  return Xs,Ys
+
+def build_dataset() -> None:
+  db150 = plyvel.DB('lexical150.ldb', create_if_missing=True)
+  dbmemo = plyvel.DB('memo.ldb', create_if_missing=True)
+  print("start to loading huge file system...")
+  keys = [name.replace('.txt', '') for name in glob.glob('danbooru.imgs/*.txt')]
+  print("complete to get file names ...")
   tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
-  for key in keys[:100]:
+  print("complete to get tag_index.pkl ...")
+  for ki, key in enumerate(filter(lambda x:'kantai' in x, keys)):
+    if dbmemo.get(bytes(key, 'utf-8')) is not None:
+      continue
+    if ki%100 == 0:
+      print('iter {}'.format(ki))
     vec = [0.]*len(tag_index)
-    raw = open('{key}.txt'.format(key=key)).read().split('\n')
-    text_tags = raw[0].split()
-    for tag in text_tags:
-      #print(text_tags)
+    raw = open('{key}.txt'.format(key=key)).read()
+    try:
+      json_tag = list(json.loads(open('{key}.metav1'.format(key=key)).read()).values())
+    except FileNotFoundError as e:
+      continue
+    except OSError as e:
+      continue
+    except json.decoder.JSONDecodeError as  e:
+      continue
+    json_tag = list(map(lambda x:x.replace(' ', '_'), json_tag))
+    text_tags = raw.split()
+
+    for tag in sum([json_tag, text_tags], []):
       if tag_index.get(tag) is not None:
         vec[tag_index[tag]] = 1.
-    try:
-      json_tag  = raw[1]
-    except IndexError as e:
-      pass
     
     img = Image.open('{key}.jpg'.format(key=key))
-    img = img.convert('RGB')
-    img = np.array(img.resize((150, 150)))
-    img = np.expand_dims(img, axis=0)
-
-    #print(key)
-    #print(list(filter(lambda x:x!=0.,vec)))
-    #print(img.shape)
-    Ys.append(vec)
-    Xs.append(img)
-  return Xs, Ys
+    try:
+      img = img.convert('RGB')
+    except OSError as e:
+      continue
+    img150 = np.array(img.resize((150, 150)))
+    vec = np.array(vec)
+    img150 = msgpack.packb(img150, default=m.encode)
+    vec = msgpack.packb(vec, default=m.encode)
+    db150.put(img150, vec)
+    dbmemo.put(bytes(key, 'utf-8'), bytes('f', 'utf-8'))
+  return None
 
 def tag2index():
-  keys = [name for name in glob.glob('imgs/*.txt')]
+  keys = [name for name in glob.glob('danbooru.imgs/*.txt')]
   tags_freq = {}
-  for key in keys:
+  length = len(keys)
+  for ki, key in enumerate(keys):
+    if ki%10000 == 0:
+      print('now on iter {}/{}'.format(ki, length))
     raw = open('{key}'.format(key=key)).read().split('\n')
     text_tags = raw[0].split()
     for tag in text_tags:
       if tags_freq.get(tag) is None :
         tags_freq[tag] = 0
       tags_freq[tag] += 1
+    metakey = "{}.metav1".format(key.replace('.txt', ''))
     try:
-      json_tag  = raw[1]
-    except IndexError as e:
-      pass
+      dic = json.loads(open('{key}'.format(key=metakey)).read())
+      for tag in map(lambda x:x.replace(' ', '_'), list(dic.values())):
+        if tags_freq.get(tag) is None :
+          tags_freq[tag] = 0
+        tags_freq[tag] += 1
+      #print(raw)
+    except FileNotFoundError as e:
+      continue
+    except OSError as e:
+      continue
+    except json.decoder.JSONDecodeError as  e:
+      continue
   tag_index = {}
+  print('now building pkl file...')
   for tag, freq in sorted(tags_freq.items(), key=lambda x:x[1]*-1)[:4096]:
     tag_index[tag] = len(tag_index)
-    print(tag, len(tag_index), freq)  
   open('tag_index.pkl', 'wb').write(pickle.dumps(tag_index))
-  #for tag, index in tag_index.items():
-  #  print(tag, index)
+
 
 def build_model():
   input_tensor = Input(shape=(150, 150, 3))
   vgg16_model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
-  w1 = Flatten()(vgg16_model.layers[14].output)
-  w2 = Flatten()(vgg16_model.layers[10].output)
-  w3 = Flatten()(vgg16_model.layers[6].output)
-  dense  = Flatten()(Dense(512, activation='relu')(vgg16_model.layers[-1].output))
-  merged = merge([w1, dense, w2, w3], mode='concat')
-  dense2 = Dense(4096)(merged)
-  acted  = Activation('sigmoid')(dense2)
-  print('vgg16_model:', vgg16_model)
-  model = Model(input=vgg16_model.input, output=acted)
-  sgd = optimizers.SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-  model.compile(loss='binary_crossentropy', optimizer=sgd)
+  #w1 = Flatten()(vgg16_model.layers[14].output)
+  dense  = Flatten()( \
+             Dense(2048, activation='relu')( \
+               BN()( \
+	         vgg16_model.layers[-1].output ) ) )
+  result = Activation('sigmoid')(\
+             Activation('linear')( \
+	       Dense(4096)(\
+                 dense) ) )
+  
+  model = Model(input=vgg16_model.input, output=result)
+  for i in range(len(model.layers)):
+    print(i, model.layers[i])
+  for layer in model.layers[:12]: # default 15
+    layer.trainable = False
+  model.compile(loss='binary_crossentropy', optimizer='adam')
   return model
-  #for i in range(len(model.layers)):
-  #  print(i, model.layers[i])
-  # 最後のconv層の直前までの層をfreeze
-  #for layer in model.layers[:15]:
-  #  layer.trainable = False
-  #model.summary()
 
 if __name__ == '__main__':
+  print('b')
   if '--maeshori' in sys.argv:
     tag2index()
-  if '--test' in sys.argv:
-    Xs, Ys = build_dataset()
+  if '--build' in sys.argv:
+    build_dataset()
+  if '--train' in sys.argv:
+    Xs, Ys = loader()
     model = build_model()
-    model.fit([Xs[0]], np.array([Ys[0]]), batch_size=32, nb_epoch=15 )
-  pass
+    ps = []
+    for i in range(30):
+      model.fit(np.array(Xs[:3000]), np.array(Ys[:3000]), batch_size=16, nb_epoch=1 )
+      if i%1 == 0:
+        model.save('models/model%05d.mpdel'%i)
