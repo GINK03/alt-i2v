@@ -94,18 +94,20 @@ def build_model():
   vgg16_model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
   #w1 = Flatten()(vgg16_model.layers[14].output)
   dense  = Flatten()( \
-               Dense(128, activation='relu')( \
-	           vgg16_model.layers[-1].output ) ) 
+             Dense(2048, activation='relu')( \
+               BN()( \
+	         vgg16_model.layers[-1].output ) ) )
   result = Activation('sigmoid')(\
-             Dense(4096)(\
-               dense) ) 
+             Activation('linear')( \
+	       Dense(4096)(\
+                 dense) ) )
   
   model = Model(input=vgg16_model.input, output=result)
   for i in range(len(model.layers)):
     print(i, model.layers[i])
-  for layer in model.layers[:15]:
+  for layer in model.layers[:12]: # default 15
     layer.trainable = False
-  model.compile(loss='binary_crossentropy', optimizer='sgd')
+  model.compile(loss='binary_crossentropy', optimizer='adam')
   return model
 
 if __name__ == '__main__':
@@ -117,11 +119,12 @@ if __name__ == '__main__':
   if '--train' in sys.argv:
     Xs, Ys = loader()
     model = build_model()
-    for i in range(20):
-      model.fit(np.array(Xs), np.array(Ys), batch_size=16, nb_epoch=1 )
+    for i in range(30):
+      model.fit(np.array(Xs[:3000]), np.array(Ys[:3000]), batch_size=16, nb_epoch=1 )
       if i%1 == 0:
-        from multiprocessing import Process
-        saver = lambda x:model.save('models/model%05d'%i)
-        p = Process(target=saver, args=(None,))
-        p.start()
+        #from multiprocessing import Process
+        #model.save('models/model%05d'%i)
+        pass
+        #p = Process(target=saver, args=(None,))
+        #p.start()
   pass
