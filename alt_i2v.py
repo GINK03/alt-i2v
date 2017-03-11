@@ -1,7 +1,7 @@
 import keras
 from keras.applications.vgg16 import VGG16 
 from keras.preprocessing.image import ImageDataGenerator
-from keras.models import Sequential, Model, Merge
+from keras.models import Sequential, Model, Merge, load_model
 from keras.layers import Input, Activation, Dropout, Flatten, Dense, Reshape, merge
 from keras.preprocessing.image import ImageDataGenerator
 from keras import optimizers
@@ -26,14 +26,20 @@ nb_validation_samples = 800
 nb_epoch = 50
 result_dir = 'results'
 
-def loader():
-  db = plyvel.DB('lexical150.ldb', create_if_missing=False)
+def loader(db, th = None):
+  db = plyvel.DB(db, create_if_missing=True)
   Xs, Ys = [], []
-  for img, vec in db:
+  for dbi, (img, vec) in enumerate(db):
     img = msgpack.unpackb(img, object_hook=m.decode) 
     Xs.append(img)
     vec = msgpack.unpackb(vec, object_hook=m.decode) 
     Ys.append(vec)
+    if dbi%1000 == 0:
+      print('now on load iter {}'.format(dbi))
+    if dbi > 50000:
+      break
+    if th and th < dbi:
+      break
   return Xs,Ys
 
 def build_dataset() -> None:
@@ -129,7 +135,6 @@ def tag2index():
 def build_model():
   input_tensor = Input(shape=(150, 150, 3))
   vgg16_model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
-  #w1 = Flatten()(vgg16_model.layers[14].output)
   dense  = Flatten()( \
              Dense(2048, activation='relu')( \
                BN()( \
@@ -148,18 +153,51 @@ def build_model():
   return model
 
 def train():
-  Xs, Ys = loader()
+  print('load lexical dataset...')
+  Xs, Ys = loader(db='lexical150.ldb')
+  print('build model...')
   model = build_model()
-  for i in range(30):
-    model.fit(np.array(Xs[:3000]), np.array(Ys[:3000]), batch_size=16, nb_epoch=1 )
+  for i in range(100):
+    model.fit(np.array(Xs), np.array(Ys), batch_size=16, nb_epoch=1 )
     if i%1 == 0:
       model.save('models/model%05d.model'%i)
 
+def eval():
+  tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
+  index_tag = { index:tag for tag, index in tag_index.items() }
+  model = build_model()
+  model = load_model(sorted(glob.glob('models/*.model'))[-1]) 
+  Xs, Ys = loader(db='lexical_eval.ldb', th=100)
+  for i in range(30):
+    result = model.predict(np.array([Xs[i]]) )
+
+    for i,w in sorted(result.items(), key=lambda x:x[1]*-1)[:30]:
+      print(index_tag[i], i, w)
+
+def pred():
+  tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
+  index_tag = { index:tag for tag, index in tag_index.items() }
+  name_img150 = []
+  for name in filter(lambda x: '.jpg' in x, sys.argv):
+    img = Image.open('{name}'.format(name=name))
+    img = img.convert('RGB')
+    img150 = np.array(img.resize((150, 150)))
+    name_img150.append( (name, img150) )
+  model = load_model(sorted(glob.glob('models/*.model'))[-1]) 
+  for name, img150 in name_img150:
+    result = model.predict(np.array([img150]) )
+    result = result.tolist()[0]
+    result = { i:w for i,w in enumerate(result)}
+    for i,w in sorted(result.items(), key=lambda x:x[1]*-1)[:30]:
+      print("{name} tag={tag} prob={prob}".format(name=name, tag=index_tag[i], prob=w) )
 if __name__ == '__main__':
-  print('b')
   if '--maeshori' in sys.argv:
     tag2index()
   if '--build' in sys.argv:
     build_dataset()
   if '--train' in sys.argv:
     train()
+  if '--eval' in sys.argv:
+    eval()
+  if '--pred' in sys.argv:
+    pred()

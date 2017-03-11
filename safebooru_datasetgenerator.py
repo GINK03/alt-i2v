@@ -16,9 +16,11 @@ import random
 from multiprocessing import Pool  
 from multiprocessing import Process, Queue
 from concurrent import futures
+import time
 def html_adhoc_fetcher(url):
   html = None
   retrys = [i for i in range(10)]
+  time.sleep(10)
   for _ in retrys :
     headers = {"Accept-Language": "en-US,en;q=0.5","User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0","Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer": "http://thewebsite.com","Connection": "keep-alive" } 
     request = urllib.request.Request(url=url, headers=headers)
@@ -123,7 +125,4 @@ if __name__ == '__main__':
         msg = '{n}: {result}'.format(n=input_arg, result=result)
         print(msg)
   
-  if mode == 'chaine':
-    import os
-    db = plyvel.DB('./tmp/pixiv_htmls', create_if_missing=False)
 
