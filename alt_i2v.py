@@ -1,5 +1,4 @@
 import keras
-from keras.applications.vgg16 import VGG16 
 from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential, Model, Merge, load_model
 from keras.layers import Input, Activation, Dropout, Flatten, Dense, Reshape, merge
@@ -132,6 +131,7 @@ def tag2index():
   open('tag_index.pkl', 'wb').write(pickle.dumps(tag_index))
 
 
+from keras.applications.vgg16 import VGG16 
 def build_model():
   input_tensor = Input(shape=(150, 150, 3))
   vgg16_model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
@@ -151,6 +151,8 @@ def build_model():
     layer.trainable = False
   model.compile(loss='binary_crossentropy', optimizer='adam')
   return model
+
+#build_model()
 
 def train():
   print('load lexical dataset...')
