@@ -85,13 +85,12 @@ def analyzing(inputs) -> str:
 if __name__ == '__main__':
   original_sigint = signal.getsignal(signal.SIGINT)
   signal.signal(signal.SIGINT, exit_gracefully)
-  parser = argparse.ArgumentParser(description='Process Kindle Referenced Index Score.')
+  parser = argparse.ArgumentParser(description='Process Safebooru image tag scraper.')
   parser.add_argument('--mode', help='you can specify mode...')
   args_obj = vars(parser.parse_args())
   mode = (lambda x:x if x else 'undefined')( args_obj.get('mode') )
   
   if mode == 'scrape':
-    
     finished = set(name.split('/')[-1] for name in glob.glob('./finished/*'))
     samples  = filter( lambda x:x not in finished, range(1, 2653427))
     urls = [ ('http://safebooru.org/index.php?page=post&s=view&id={i}'.format(i=i), i) for i in samples]
