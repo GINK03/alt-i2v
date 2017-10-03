@@ -49,7 +49,6 @@ def exit_gracefully(signum, frame):
   signal.signal(signal.SIGINT, exit_gracefully)
 
 def analyzing(inputs) -> str:
-  print('start to run', inputs)
   url, index = inputs
   burl = bytes(url, 'utf-8')
   html, title, soup = html_fetcher(url)
@@ -59,21 +58,27 @@ def analyzing(inputs) -> str:
   img = soup.find('img', {'id':'image'} )
   if img is None:
     return None
-  print('test', img )
-  print('src', img.get('src') )
-  print('tag', img.get('alt') )
   img_url = 'https:{}'.format(img.get('src'))
-  print(img_url)
   data_tags = img.get('alt')
   def _i(img_url, data_tags, index):
-    opener  = urllib.request.build_opener()
-    request = urllib.request.Request(url=img_url)
-    con = opener.open(request).read()
-    save_name = re.sub(r'\?.*$', '', img_url)
-    open('imgs/{name}.jpg'.format( name=save_name.split('/')[-1] ), 'wb').write(con)
-    open('imgs/{name}.txt'.format( name=save_name.split('/')[-1] ), 'w').write(data_tags)
-    open('finished/{index}'.format(index=index), 'w').write("f")
-    print('complete storing image of {url}'.format(url=img_url) )
+    for trial in range(15):
+      try:
+        opener  = urllib.request.build_opener()
+        request = urllib.request.Request(url=img_url)
+        con = opener.open(request).read()
+      except Exception as e:
+        time.sleep(1.)
+        continue
+      save_name = re.sub(r'\?.*$', '', img_url)
+      break
+
+    try:
+      open('imgs/{name}.jpg'.format( name=save_name.split('/')[-1] ), 'wb').write(con)
+      open('imgs/{name}.txt'.format( name=save_name.split('/')[-1] ), 'w').write(data_tags)
+      open('finished/{index}'.format(index=index), 'w').write("f")
+      print('complete storing image of {url}'.format(url=img_url) )
+    except UnboundLocalError as e:
+      print( e )
   th = Th(target=_i, args=(img_url, data_tags, index,))
   th.start()
 
@@ -83,7 +88,7 @@ if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Process Kindle Referenced Index Score.')
   parser.add_argument('--mode', help='you can specify mode...')
   args_obj = vars(parser.parse_args())
-  mode       = (lambda x:x if x else 'undefined')( args_obj.get('mode') )
+  mode = (lambda x:x if x else 'undefined')( args_obj.get('mode') )
   
   if mode == 'scrape':
     
@@ -94,12 +99,5 @@ if __name__ == '__main__':
    
     #[ analyzing(url) for url in urls ] 
     # 元々は768で並列処理
-    with futures.ProcessPoolExecutor(max_workers=32) as executor:
-      mappings = {executor.submit(analyzing, url): url for url in urls}
-      for future in futures.as_completed(mappings):
-        input_arg = mappings[future]
-        print(future.result())
-        result = future.result()
-        msg = '{n}: {result}'.format(n=input_arg, result=result)
-        print(msg)
-
+    with futures.ProcessPoolExecutor(max_workers=64) as executor:
+      executor.map( analyzing, urls )
