@@ -18,38 +18,20 @@ from multiprocessing import Process, Queue
 import multiprocessing as mp
 from concurrent import futures
 import time
-def html_adhoc_fetcher(url):
-  html = None
-  retrys = [i for i in range(10)]
-  time.sleep(10)
+from threading import Thread as Th
+import glob
 
-  for _ in retrys :
+def html_fetcher(url):
+  html = None
+  time.sleep(1.0)
+  for ret in range(10) :
     headers = {"Accept-Language": "en-US,en;q=0.5","User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0","Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer": "http://thewebsite.com","Connection": "keep-alive" } 
     request = urllib.request.Request(url=url, headers=headers)
     opener = urllib.request.build_opener()
-    _TIME_OUT = 10.
+    TIME_OUT = 10.
     try:
-      html = opener.open(request, timeout = _TIME_OUT).read()
-    except EOFError as e:
-      print('[WARN] Cannot access url with EOFError, try number is...', e, _, url, mp.current_process() )
-      continue
-    except urllib.error.URLError as e:
-      print('[WARN] Cannot access url with URLError, try number is...', e, _, url, mp.current_process() )
-      continue
-    except urllib.error.HTTPError as e:
-      print('[WARN] Cannot access url with urllib2.httperror, try number is...', e, _, url, mp.current_process() )
-      continue
-    except ssl.SSLError as e:
-      print('[WARN] Cannot access url with ssl error, try number is...', e, _, url, mp.current_process() )
-      continue
-    except http.client.BadStatusLine as e:
-      print('[WARN] Cannot access url with BadStatusLine, try number is...', e, _, url, mp.current_process() )
-      continue
-    except http.client.IncompleteRead as e:
-      print('[WARN] Cannot access url with IncompleteRead, try number is...', e, _, url, mp.current_process() )
-      continue
-    except SocketError as e:
-      print('[WARN] Cannot access url with SocketError, try number is...', e, _, url, mp.current_process() )
+      html = opener.open(request, timeout=TIME_OUT).read()
+    except Exception as e:
       continue
   if html == None:
     return (None, None, None)
@@ -66,69 +48,53 @@ def exit_gracefully(signum, frame):
     sys.exit(1)
   signal.signal(signal.SIGINT, exit_gracefully)
 
+def analyzing(inputs) -> str:
+  print('start to run', inputs)
+  url, index = inputs
+  burl = bytes(url, 'utf-8')
+  html, title, soup = html_fetcher(url)
+  if soup is None:
+    print('except miss')
+    return None
+  img = soup.find('img', {'id':'image'} )
+  if img is None:
+    return None
+  print('test', img )
+  print('src', img.get('src') )
+  print('tag', img.get('alt') )
+  img_url = 'https:{}'.format(img.get('src'))
+  print(img_url)
+  data_tags = img.get('alt')
+  def _i(img_url, data_tags, index):
+    opener  = urllib.request.build_opener()
+    request = urllib.request.Request(url=img_url)
+    con = opener.open(request).read()
+    save_name = re.sub(r'\?.*$', '', img_url)
+    open('imgs/{name}.jpg'.format( name=save_name.split('/')[-1] ), 'wb').write(con)
+    open('imgs/{name}.txt'.format( name=save_name.split('/')[-1] ), 'w').write(data_tags)
+    open('finished/{index}'.format(index=index), 'w').write("f")
+    print('complete storing image of {url}'.format(url=img_url) )
+  th = Th(target=_i, args=(img_url, data_tags, index,))
+  th.start()
+
 if __name__ == '__main__':
-  # store the original SIGINT handler
   original_sigint = signal.getsignal(signal.SIGINT)
   signal.signal(signal.SIGINT, exit_gracefully)
   parser = argparse.ArgumentParser(description='Process Kindle Referenced Index Score.')
-  #parser.add_argument('--URL', help='set default URL which to scrape at first')
-  #parser.add_argument('--depth', help='how number of url this program will scrape')
   parser.add_argument('--mode', help='you can specify mode...')
-  #parser.add_argument('--refresh', help='create snapshot(true|false)')
-  #parser.add_argument('--file', help='input filespath')
-  #parser.add_argument('--active', help='spcific active thread number')
   args_obj = vars(parser.parse_args())
-  #depth      = (lambda x:int(x) if x else 10)( args_obj.get('depth') )
   mode       = (lambda x:x if x else 'undefined')( args_obj.get('mode') )
-  #refresh    = (lambda x:False if x=='false' else True)( args_obj.get('refresh') )
-  #active     = (lambda x:15 if x==None else int(x) )( args_obj.get('active') )
-  #filename   = args_obj.get('file')
-
+  
   if mode == 'scrape':
-    from threading import Thread as Th
-    import glob
-    
-    def analyzing(inputs) -> str:
-      print('start to run', inputs)
-      url, index = inputs
-      burl = bytes(url, 'utf-8')
-      html, title, soup = html_adhoc_fetcher(url)
-      if soup is None:
-        print('except miss')
-        return str(False)
-      #sec = soup.find('section', {'id':'image-container'})
-      #img_url = 'http://safebooru.donmai.us{}'.format(sec.find('img').get('src'))
-      img = soup.find('img', {'id':'image'} )
-      print( 'test', img )
-      print('src', img.get('src') )
-      print('tag', img.get('alt') )
-      img_url = 'https:{}'.format(img.get('src'))
-      print(img_url)
-      data_tags = img.get('alt')
-
-      #data_tags = sec.find('img').get('data-tags')
-      def _i(img_url, data_tags, index):
-        opener  = urllib.request.build_opener()
-        request = urllib.request.Request(url=img_url)
-        con = opener.open(request).read()
-        save_name = re.sub(r'\?.*$', '', img_url)
-        open('./imgs/{}.jpg'.format( save_name.split('/')[-1] ), 'wb').write(con)
-        open('./imgs/{name}.txt'.format(name=save_name.split('/')[-1] ), 'w').write(data_tags)
-        open('./finished/{index}'.format(index=index), 'w').write("f")
-        print('complete storing image of {url}'.format(url=img_url) )
-      th = Th(target=_i, args=(img_url, data_tags, index,))
-      th.start()
-      return sec.find('img').get('data-tags')
     
     finished = set(name.split('/')[-1] for name in glob.glob('./finished/*'))
     samples  = filter( lambda x:x not in finished, range(1, 2653427))
     urls = [ ('http://safebooru.org/index.php?page=post&s=view&id={i}'.format(i=i), i) for i in samples]
-    #urls = [ ('https://safebooru.org/index.php?page=post&s=view&id=2337538', 2337538)] 
     random.shuffle(urls)
    
-    #[analyzing(url) for url in urls ] 
+    #[ analyzing(url) for url in urls ] 
     # 元々は768で並列処理
-    with futures.ProcessPoolExecutor(max_workers=4) as executor:
+    with futures.ProcessPoolExecutor(max_workers=32) as executor:
       mappings = {executor.submit(analyzing, url): url for url in urls}
       for future in futures.as_completed(mappings):
         input_arg = mappings[future]
