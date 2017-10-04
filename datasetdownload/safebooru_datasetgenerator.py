@@ -21,17 +21,18 @@ import time
 from threading import Thread as Th
 import glob
 
-def html_fetcher(url):
+def html_fetcher(url, phost):
   html = None
-  time.sleep(1.0)
   for ret in range(10) :
     headers = {"Accept-Language": "en-US,en;q=0.5","User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64; rv:40.0) Gecko/20100101 Firefox/40.0","Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8","Referer": "http://thewebsite.com","Connection": "keep-alive" } 
     request = urllib.request.Request(url=url, headers=headers)
-    opener = urllib.request.build_opener()
+    proxy = urllib.request.ProxyHandler({'http': phost})
+    opener = urllib.request.build_opener(proxy)
     TIME_OUT = 10.
     try:
       html = opener.open(request, timeout=TIME_OUT).read()
     except Exception as e:
+      print( e )
       continue
   if html == None:
     return (None, None, None)
@@ -49,9 +50,9 @@ def exit_gracefully(signum, frame):
   signal.signal(signal.SIGINT, exit_gracefully)
 
 def analyzing(inputs) -> str:
-  url, index = inputs
+  url, index, phost = inputs
   burl = bytes(url, 'utf-8')
-  html, title, soup = html_fetcher(url)
+  html, title, soup = html_fetcher(url, phost)
   if soup is None:
     print('except miss')
     return None
@@ -60,40 +61,43 @@ def analyzing(inputs) -> str:
     return None
   img_url = 'https:{}'.format(img.get('src'))
   data_tags = img.get('alt')
-  def _i(img_url, data_tags, index):
-    for trial in range(15):
-      try:
-        opener  = urllib.request.build_opener()
-        request = urllib.request.Request(url=img_url)
-        con = opener.open(request).read()
-      except Exception as e:
-        time.sleep(1.)
-        continue
-      save_name = re.sub(r'\?.*$', '', img_url)
-      break
-
+  for trial in range(15):
     try:
-      open('imgs/{name}.jpg'.format( name=save_name.split('/')[-1] ), 'wb').write(con)
-      open('imgs/{name}.txt'.format( name=save_name.split('/')[-1] ), 'w').write(data_tags)
-      open('finished/{index}'.format(index=index), 'w').write("f")
-      print('complete storing image of {url}'.format(url=img_url) )
-    except UnboundLocalError as e:
-      print( e )
-  th = Th(target=_i, args=(img_url, data_tags, index,))
-  th.start()
+      proxy = urllib.request.ProxyHandler({'http': phost})
+      opener  = urllib.request.build_opener(proxy)
+      request = urllib.request.Request(url=img_url)
+      con = opener.open(request, timeout=10.0).read()
+    except Exception as e:
+      print( phost )
+      print('aaa', e )
+      time.sleep(1.)
+      continue
+    save_name = re.sub(r'\?.*$', '', img_url)
+    break
+
+  try:
+    save_name = save_name
+    open('imgs/{name}.jpg'.format( name=save_name.split('/')[-1] ), 'wb').write(con)
+    open('imgs/{name}.txt'.format( name=save_name.split('/')[-1] ), 'w').write(data_tags)
+    open('finished/{index}'.format(index=index), 'w').write("f")
+    print('complete storing image of {url}'.format(url=img_url) )
+  except UnboundLocalError as e:
+    print( e )
 
 if __name__ == '__main__':
   original_sigint = signal.getsignal(signal.SIGINT)
   signal.signal(signal.SIGINT, exit_gracefully)
   parser = argparse.ArgumentParser(description='Process Safebooru image tag scraper.')
   parser.add_argument('--mode', help='you can specify mode...')
+  parser.add_argument('--proxy', help='you can specify mode...')
   args_obj = vars(parser.parse_args())
   mode = (lambda x:x if x else 'undefined')( args_obj.get('mode') )
-  
+  proxy = (lambda x:x if x else 'undefined')( args_obj.get('proxy') )
+  phosts = ['http://{proxy}:{proxy}awr003@{phost}:8086'.format(proxy=proxy, phost=phost.strip()) for phost in open('proxys.txt')] 
   if mode == 'scrape':
     finished = set(name.split('/')[-1] for name in glob.glob('./finished/*'))
     samples  = filter( lambda x:x not in finished, range(1, 2653427))
-    urls = [ ('http://safebooru.org/index.php?page=post&s=view&id={i}'.format(i=i), i) for i in samples]
+    urls = [ ('http://safebooru.org/index.php?page=post&s=view&id={i}'.format(i=i), i, random.choice(phosts)) for i in samples]
     random.shuffle(urls)
    
     #[ analyzing(url) for url in urls ] 
