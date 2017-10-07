@@ -6,50 +6,56 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras import optimizers
 from keras.preprocessing.image import ImageDataGenerator
 from keras.layers.normalization import BatchNormalization as BN
+from keras.layers.core import Dropout
+from keras.applications.vgg16 import VGG16 
 import numpy as np
 import os
 from PIL import Image
 import glob 
 import pickle
 import sys
+import random
 import msgpack
 import numpy as np
 import json
 
-from keras.applications.vgg16 import VGG16 
 input_tensor = Input(shape=(224, 224, 3))
 vgg16_model = VGG16(include_top=False, weights='imagenet', input_tensor=input_tensor)
-dense  = Flatten()( \
-           Dense(6000, activation='relu')( \
-             BN()( \
-         vgg16_model.layers[-1].output ) ) )
-result = Activation('sigmoid')(\
-           Activation('linear')( \
-              Dense(5000)(\
-                dense) ) )
-
-model = Model(input=vgg16_model.input, output=result)
+for layer in vgg16_model.layers[:12]: # default 15
+  layer.trainable = False
+x = vgg16_model.layers[-1].output 
+x = Flatten()(x)
+x = BN()(x)
+x = Dense(5000, activation='relu')(x)
+x = Dropout(0.3)(x)
+x = Dense(5000, activation='sigmoid')(x)
+model = Model(input=vgg16_model.input, output=x)
 model.compile(loss='binary_crossentropy', optimizer='adam')
 
 def train():
-  print('load pickled dataset...')
-  Xs = []
-  ys = []
-  for idx, name in enumerate( glob.glob('make_datapair/dataset/*.pkl') ):
-    X,y = pickle.loads(open(name,'rb').read() ) 
-    if idx >= 1000:
-      break
-    Xs.append( X )
-    ys.append( y )
-    print( X.shape )
-
-  Xs = np.array( Xs )
-  ys = np.array( ys )
-  print( ys.shape )
   for i in range(100):
+    print('now iter {} load pickled dataset...'.format(i))
+    Xs = []
+    ys = []
+    names = [name for idx, name in enumerate( glob.glob('../make_datapair/dataset/*.pkl') )]
+    random.shuffle( names )
+    for idx, name in enumerate(names):
+      try:
+        X,y = pickle.loads(open(name,'rb').read() ) 
+      except EOFError as e:
+        continue
+      if idx%100 == 0:
+        print('now scan iter', idx)
+      if idx >= 15000:
+        break
+      Xs.append( X )
+      ys.append( y )
+
+    Xs = np.array( Xs )
+    ys = np.array( ys )
     model.fit(Xs, ys, epochs=1 )
-    if i%1 == 0:
-      model.save('models/model%05d.model'%i)
+    print('now iter {} '.format(i))
+    model.save_weights('models/{:09d}.h5'.format(i))
 
 def eval():
   tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
@@ -80,10 +86,6 @@ def pred():
     for i,w in sorted(result.items(), key=lambda x:x[1]*-1)[:30]:
       print("{name} tag={tag} prob={prob}".format(name=name, tag=index_tag[i], prob=w) )
 if __name__ == '__main__':
-  if '--maeshori' in sys.argv:
-    tag2index()
-  if '--build' in sys.argv:
-    build_dataset()
   if '--train' in sys.argv:
     train()
   if '--eval' in sys.argv:
