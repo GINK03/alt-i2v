@@ -33,11 +33,11 @@ model = Model(input=vgg16_model.input, output=x)
 model.compile(loss='binary_crossentropy', optimizer='adam')
 
 def train():
-  for i in range(100):
+  for i in range(500):
     print('now iter {} load pickled dataset...'.format(i))
     Xs = []
     ys = []
-    names = [name for idx, name in enumerate( glob.glob('../make_datapair/dataset/*.pkl') )]
+    names = [name for idx, name in enumerate( glob.glob('../dataset/*.pkl') )]
     random.shuffle( names )
     for idx, name in enumerate(names):
       try:
