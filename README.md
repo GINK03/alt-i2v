@@ -44,8 +44,8 @@ Safebooruさんからダウンロードさせていただきました
   <img width="450px" src="https://user-images.githubusercontent.com/4949982/31794222-77a9fa70-b55c-11e7-8b77-b13f738c7301.png">
 </div>
 
-<div align="center">
-  <img width="450px" src="https://user-images.githubusercontent.com/4949982/31794577-bb07323c-b55d-11e7-9e93-4fb761bda917.png">
+<div align="center" >
+  <img width="350px" src="https://user-images.githubusercontent.com/4949982/31794577-bb07323c-b55d-11e7-9e93-4fb761bda917.png">
 </div>
 
 <div align="center">
@@ -53,14 +53,14 @@ Safebooruさんからダウンロードさせていただきました
 </div>
 
 <div align="center">
-  <img width="450px" src="https://user-images.githubusercontent.com/4949982/31794847-9c2fdf98-b55e-11e7-84ea-7f6c8551bbf0.png">
+  <img width="350px" src="https://user-images.githubusercontent.com/4949982/31794847-9c2fdf98-b55e-11e7-84ea-7f6c8551bbf0.png">
 </div>
 
 
-<div align="center">
+<div align="center"  stype="float:left;">
   <img width="450px" src="https://user-images.githubusercontent.com/4949982/31795198-df56f788-b55f-11e7-924b-01d42f5f4315.png">
 </div>
 
 <div align="center">
-  <img width="450px" src="https://user-images.githubusercontent.com/4949982/31795399-9d09b8ce-b560-11e7-8e54-810d3e7edee4.png">
+  <img width="350px" src="https://user-images.githubusercontent.com/4949982/31795399-9d09b8ce-b560-11e7-8e54-810d3e7edee4.png">
 </div>
