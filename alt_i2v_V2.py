@@ -57,19 +57,8 @@ def train():
     print('now iter {} '.format(i))
     model.save_weights('models/{:09d}.h5'.format(i))
 
-def eval():
-  tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
-  index_tag = { index:tag for tag, index in tag_index.items() }
-  model = build_model()
-  model = load_model(sorted(glob.glob('models/*.model'))[-1]) 
-  Xs, Ys = loader(db='lexical_eval.ldb', th=100)
-  for i in range(30):
-    result = model.predict(np.array([Xs[i]]) )
-
-    for i,w in sorted(result.items(), key=lambda x:x[1]*-1)[:30]:
-      print(index_tag[i], i, w)
-
 def pred():
+  """
   tag_index = pickle.loads(open('tag_index.pkl', 'rb').read())
   index_tag = { index:tag for tag, index in tag_index.items() }
   name_img150 = []
@@ -78,17 +67,23 @@ def pred():
     img = img.convert('RGB')
     img150 = np.array(img.resize((150, 150)))
     name_img150.append( (name, img150) )
-  model = load_model(sorted(glob.glob('models/*.model'))[-1]) 
-  for name, img150 in name_img150:
-    result = model.predict(np.array([img150]) )
+  """
+  model.load_weights(sorted(glob.glob('models/*.h5'))[-1]) 
+
+  tag_index = pickle.loads( open('make_datapair/tag_index.pkl', 'rb').read() )
+  index_tag = { index:tag for tag,index in tag_index.items() }
+
+
+  for name in glob.glob('./make_datapair/dataset/*'):
+    X, y = pickle.loads( open(name,'rb').read() )
+    result = model.predict(np.array([X]) )
     result = result.tolist()[0]
     result = { i:w for i,w in enumerate(result)}
     for i,w in sorted(result.items(), key=lambda x:x[1]*-1)[:30]:
       print("{name} tag={tag} prob={prob}".format(name=name, tag=index_tag[i], prob=w) )
+
 if __name__ == '__main__':
   if '--train' in sys.argv:
     train()
-  if '--eval' in sys.argv:
-    eval()
   if '--pred' in sys.argv:
     pred()

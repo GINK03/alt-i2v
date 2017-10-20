@@ -28,6 +28,7 @@ def html_fetcher(url, phost):
     request = urllib.request.Request(url=url, headers=headers)
     proxy = urllib.request.ProxyHandler({'http': phost})
     opener = urllib.request.build_opener(proxy)
+    #opener = urllib.request.build_opener()
     TIME_OUT = 10.
     try:
       html = opener.open(request, timeout=TIME_OUT).read()
@@ -65,6 +66,7 @@ def analyzing(inputs) -> str:
     try:
       proxy = urllib.request.ProxyHandler({'http': phost})
       opener  = urllib.request.build_opener(proxy)
+      #opener  = urllib.request.build_opener()
       request = urllib.request.Request(url=img_url)
       con = opener.open(request, timeout=10.0).read()
     except Exception as e:
@@ -79,7 +81,8 @@ def analyzing(inputs) -> str:
     save_name = save_name
     open('imgs/{name}.jpg'.format( name=save_name.split('/')[-1] ), 'wb').write(con)
     open('imgs/{name}.txt'.format( name=save_name.split('/')[-1] ), 'w').write(data_tags)
-    open('finished/{index}'.format(index=index), 'w').write("f")
+    open('imgs/{name}.url'.format( name=save_name.split('/')[-1] ), 'w').write(url)
+    open('finished/{index}'.format(index=index), 'w').write('flag')
     print('complete storing image of {url}'.format(url=img_url) )
   except UnboundLocalError as e:
     print( e )
@@ -96,11 +99,11 @@ if __name__ == '__main__':
   phosts = ['http://{proxy}:{proxy}awr003@{phost}:8086'.format(proxy=proxy, phost=phost.strip()) for phost in open('proxys.txt')] 
   if mode == 'scrape':
     finished = set(name.split('/')[-1] for name in glob.glob('./finished/*'))
-    samples  = filter( lambda x:x not in finished, range(1, 2653427))
+    samples  = filter( lambda x: str(x) not in finished, range(1, 2653427))
     urls = [ ('http://safebooru.org/index.php?page=post&s=view&id={i}'.format(i=i), i, random.choice(phosts)) for i in samples]
     random.shuffle(urls)
    
     #[ analyzing(url) for url in urls ] 
     # 元々は768で並列処理
-    with futures.ProcessPoolExecutor(max_workers=64) as executor:
+    with futures.ProcessPoolExecutor(max_workers=100) as executor:
       executor.map( analyzing, urls )
