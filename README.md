@@ -20,8 +20,8 @@ ReLu, DropOutともネットワークを疎結合にする役割が期待でき�
 
 ## オプティマイザと損失関数
 これ系のタスクではAdamかSGDが良い成績をいつも収めることが期待されていますので、何も考えず、Adamで決め打ちです  
-- Adam : LearningRate 0.001
-- MSE
+- オプティマイザ、Adam : LearningRate 0.001
+- 損失関数、BINARY CROSS ENTROPY
 
 ## 使ったデータセット
 Safebooruさんからダウンロードさせていただきました  
@@ -65,3 +65,5 @@ Safebooruさんからダウンロードさせていただきました
 <div align="center">
   <img width="350px" src="https://user-images.githubusercontent.com/4949982/31809809-4e4b1ff8-b5b4-11e7-8d58-074804960a32.png">
 </div>
+
+## 
