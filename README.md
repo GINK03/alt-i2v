@@ -1,8 +1,15 @@
 # Alternative Implementation Of Illustration2Vec Ver2.
 
-## Illustration2Vecの概要
+## Alternative Illustration2Vec Ver2の概要
 - 画像をタグ等の特定の特徴量に従ってベクトル化できる
 - このベクトルとは通常画像分類で用いられるsoftmaxなどのマルチクラスではなく、softprobの(\*1)問題として捉えることができる
+
+### Version2の改善、変更点
+- Ver1に比べて探索的であって割とひどいコードを修正して、わかりやすく変えました
+- 150x150の画像のサイズから、224x224にスケールアップしました
+- BatchNormalizationだけでなく、DropOutも併用してネットワークのスパース性を高めました
+- Msgpackを用いたKVSをやめて、ただのPickleで画像のシリアライズをする様になりました
+- Keras V2のインターフェースに合わせました
 
 \*1 softprobはxgboostの用語でありますが、各クラスに該当するものが、その確率値を返すものです  
 
