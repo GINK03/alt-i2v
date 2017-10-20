@@ -62,5 +62,5 @@ Safebooruさんからダウンロードさせていただきました
 </div>
 
 <div align="center">
-  <img width="350px" src="https://user-images.githubusercontent.com/4949982/31795399-9d09b8ce-b560-11e7-8e54-810d3e7edee4.png">
+  <img width="350px" src="https://user-images.githubusercontent.com/4949982/31809809-4e4b1ff8-b5b4-11e7-8d58-074804960a32.png">
 </div>
