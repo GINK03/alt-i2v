@@ -18,9 +18,10 @@ VGG16の評価モデルはよくチューニングされており、別段何か
 ReLu, DropOutともネットワークを疎結合にする役割が期待できますので、ネットワークの意味のクラスタが獲得しやすくなると期待できます  
 
 
-## オプティマイザ  
+## オプティマイザと損失関数
 これ系のタスクではAdamかSGDが良い成績をいつも収めることが期待されていますので、何も考えず、Adamで決め打ちです  
 - Adam : LearningRate 0.001
+- MSE
 
 ## 使ったデータセット
 Safebooruさんからダウンロードさせていただきました  
@@ -57,7 +58,7 @@ Safebooruさんからダウンロードさせていただきました
 </div>
 
 
-<div align="center"  stype="float:left;">
+<div align="center"">
   <img width="450px" src="https://user-images.githubusercontent.com/4949982/31795198-df56f788-b55f-11e7-924b-01d42f5f4315.png">
 </div>
 
