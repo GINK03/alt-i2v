@@ -70,4 +70,12 @@ Safebooruさんからダウンロードさせていただきました
   <img width="350px" src="https://user-images.githubusercontent.com/4949982/31809809-4e4b1ff8-b5b4-11e7-8d58-074804960a32.png">
 </div>
 
-## 
+## KPI予想としてのIllustration2Vec
+[Practical Lessons from Predicting Clicks on Ads at Facebook](https://research.fb.com/wp-content/uploads/2016/11/practical-lessons-from-predicting-clicks-on-ads-at-facebook.pdf)という論文があります  
+
+趣旨としては、テキストやなんらかの特徴量の修道として、CTR予想などのKPI予想問題を行う際、特徴量が極めて高次元である際、アルゴリズム（この場合、勾配ブースティングの木の出力値）を特徴量とすることで、これを元にLinear Regressionをかけることで、より実践的な速度で、より高精度で予想できるという趣旨でした  
+
+勾配ブースティングはそのアルゴリズムから残渣となる誤差を最小化する様に特徴量を選択しますが、例えば、これがIllustration2Vecの出力次元値ではどうでしょうか。アルゴリズムが自動で獲得した粒度の特徴量ではないですが、同様の圧縮された特徴量の空間と見做すことができます。  
+
+データが十分に手元にないので、検証は容易ではありませんが、できそうなことでいずれチャレンジしたいと考えています  
+
