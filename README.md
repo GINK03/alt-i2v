@@ -12,7 +12,7 @@ VGG16の評価モデルはよくチューニングされており、別段何か
 
 ## モデル図  
 毎回気持ちですみません（しかし、なんらかの活性化関数の新規のものの提案というスタイルではないので、雑でいいという思いがあります）  
-<div align="600px">
+<div align="center">
   <img src="https://user-images.githubusercontent.com/4949982/31811430-7ee4de0a-b5ba-11e7-8bc7-d6749cb4e9cf.png">
 </div>
 <div align="center"> 図1. モデルのイメージ </div>
